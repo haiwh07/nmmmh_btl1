@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crypto Watermark Lab</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Crypto Watermark Lab</h1>
+    <p>LSB Watermarking + Multi-Algorithm Cryptography</p>
+  </header>
+ 
+  <section class="card">
+    <h2>1. Nhúng watermark</h2>
+    <form id="embedForm">
+      <label>Ảnh PNG/BMP</label>
+      <input type="file" name="image" accept=".png,.bmp" required>
+      <label>Watermark (≤ 100 ký tự)</label>
+      <textarea name="text" maxlength="100" required></textarea>
+      <label>Khóa</label>
+      <input type="password" name="key" required>
+      <label>Thuật toán</label>
+      <select name="algorithm">
+        {% for a in algorithms %}<option value="{{a}}">{{a}}</option>{% endfor %}
+      </select>
+      <button>Nhúng watermark</button>
+    </form>
+    <div id="embedResult" class="result"></div>
+  </section>
+ 
+  <section class="card">
+    <h2>2. Trích xuất watermark</h2>
+    <form id="extractForm">
+      <label>Ảnh đã nhúng</label>
+      <input type="file" name="image" accept=".png,.bmp" required>
+      <label>Thuật toán</label>
+      <select name="algorithm">
+        {% for a in algorithms %}<option value="{{a}}">{{a}}</option>{% endfor %}
+      </select>
+      <label>Khóa</label>
+      <input type="password" name="key" required>
+      <button>Trích xuất & giải mã</button>
+    </form>
+    <div id="extractResult" class="result"></div>
+  </section>
+ 
+  <section class="card">
+    <h2>3. Benchmark thuật toán</h2>
+    <form id="benchForm">
+      <label>Đoạn văn bản dùng chung</label>
+      <textarea name="text" maxlength="100" required>Watermark benchmark test</textarea>
+      <label>Khóa</label>
+      <input type="password" name="key" value="demo-key" required>
+      <button>Chạy benchmark</button>
+    </form>
+    <div id="benchResult" class="result"></div>
+  </section>
+ 
+  <section class="card">
+    <h2>4. Hash kiểm tra toàn vẹn</h2>
+    <form id="hashForm">
+      <textarea name="text" maxlength="100" required>Watermark benchmark test</textarea>
+      <button>Tính MD5 + SHA-256</button>
+    </form>
+    <pre id="hashResult" class="result"></pre>
+  </section>
+</div>
+ 
+<script>
+async function postForm(url, form) {
+  const r = await fetch(url, {method:"POST", body:new FormData(form)});
+  return await r.json();
+}
+document.querySelector("#embedForm").onsubmit = async e => {
+  e.preventDefault();
+  const out = await postForm("/api/embed", e.target);
+  const box = document.querySelector("#embedResult");
+  if(out.error){ box.innerHTML = `<b class="err">${out.error}</b>`; return; }
+  const a = document.createElement("a");
+  a.href = "data:image/png;base64," + out.image_base64;
+  a.download = "watermarked.png";
+  a.textContent = "⬇ Tải ảnh đã nhúng";
+  box.innerHTML = `<p>Thuật toán: <b>${out.algorithm}</b></p>
+  <p>PSNR: <b>${out.psnr ?? "∞"}</b> dB</p>
+  <p>Thời gian mã hóa: <b>${out.encryption_ms}</b> ms</p>
+  <p>Kích thước payload: <b>${out.payload_bytes}</b> bytes</p>`;
+  box.appendChild(a);
+};
+document.querySelector("#extractForm").onsubmit = async e => {
+  e.preventDefault();
+  const out = await postForm("/api/extract", e.target);
+  document.querySelector("#extractResult").innerHTML = out.error
+    ? `<b class="err">${out.error}</b>`
+    : `<p>Thuật toán: <b>${out.algorithm}</b></p>
+       <p>Watermark: <code>${out.text}</code></p>
+       <p>Thời gian giải mã: <b>${out.decryption_ms}</b> ms</p>
+       <p>SHA-256: <code>${out.sha256}</code></p>`;
+};
+document.querySelector("#benchForm").onsubmit = async e => {
+  e.preventDefault();
+  const out = await postForm("/api/benchmark", e.target);
+  const box = document.querySelector("#benchResult");
+  if(out.error){ box.innerHTML = `<b class="err">${out.error}</b>`; return; }
+  let html = `<table><tr><th>Thuật toán</th><th>Mã hóa (ms)</th><th>Giải mã (ms)</th><th>Bytes</th></tr>`;
+  for(const x of out.results){
+    html += `<tr><td>${x.algorithm}</td><td>${x.encryption_ms ?? "-"}</td><td>${x.decryption_ms ?? "-"}</td><td>${x.ciphertext_bytes ?? "-"}</td></tr>`;
+  }
+  box.innerHTML = html + "</table>";
+};
+document.querySelector("#hashForm").onsubmit = async e => {
+  e.preventDefault();
+  const out = await postForm("/api/hash", e.target);
+  document.querySelector("#hashResult").textContent =
+    JSON.stringify(out, null, 2);
+};
+</script>
+</body>
+</html>

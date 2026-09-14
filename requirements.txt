@@ -3,3 +3,4 @@ Pillow>=10.0
 numpy>=1.26
 pycryptodome>=3.20
 cryptography>=42.0
+gunicorn==22.0.0
